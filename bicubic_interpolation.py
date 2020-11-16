@@ -22,6 +22,13 @@ def bicubic_interp(img_addr, scale=4, shape=None):
 
     return im.resize(shape, Image.BICUBIC)
 
+def upsampling_lr_to_hr(lr_addr, hr_addr):
+    hr_img = Image.open(hr_addr)
+    lr_img = Image.open(lr_addr)
+    hrs = hr_img.size
+    lr_up = lr_img.resize((hrs[0], hrs[1]), Image.BICUBIC)
+    return lr_up
+
 if __name__ == "__main__":
     import sys
     bicubic_interp_folder_pil(sys.argv[1], int(sys.argv[2]), sys.argv[3])

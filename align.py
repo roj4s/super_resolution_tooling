@@ -42,7 +42,7 @@ def align_sift(align_img_addr, ref_img_addr, output_addr=None, min_match_count=4
     pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
     dst = cv2.perspectiveTransform(pts,M)
     perspectiveM = cv2.getPerspectiveTransform(np.float32(dst),pts)
-    found = cv2.warpPerspective(align_img, perspectiveM, (w,h))
+    aligned = cv2.warpPerspective(align_img, perspectiveM, (w,h))
 
     if output_addr is not None:
         img_name, img_format = os.path.basename(align_img_addr).split('.')
@@ -52,15 +52,62 @@ def align_sift(align_img_addr, ref_img_addr, output_addr=None, min_match_count=4
                                    f"{img_name}.{img_format}")
 
         cv2.imwrite(output_addr_matches, matched)
-        cv2.imwrite(output_addr_align, found)
+        cv2.imwrite(output_addr_align, aligned)
 
-    return found, matched
+    return aligned, matched
+
+def align_ecc(align_img_addr, ref_img_addr, output_addr=None, threshold=0.15,
+              max_features=500):
+    align_img = cv2.imread(align_img_addr)
+    ref_img = cv2.imread(ref_img_addr)
+    align_gray = cv2.cvtColor(align_img, cv2.COLOR_BGR2GRAY)
+    ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+
+    orb = cv2.ORB_create(max_features)
+    ref_kpts, ref_descripts = orb.detectAndCompute(ref_gray, None)
+    align_kpts, align_descripts = orb.detectAndCompute(align_gray, None)
+
+    matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
+    matches = matcher.match(align_descripts, ref_descripts, None)
+
+    matches.sort(key=lambda x: x.distance, reverse=False)
+    numGoodMatches = int(len(matches) * threshold)
+    matches = matches[:numGoodMatches]
+
+    matched = cv2.drawMatches(align_img, align_kpts, ref_img, ref_kpts, matches, None)
+
+    ref_pts = np.zeros((len(matches), 2), dtype=np.float32)
+    align_pts = np.zeros((len(matches), 2), dtype=np.float32)
+
+    for i, match in enumerate(matches):
+        align_pts[i, :] = align_kpts[match.queryIdx].pt
+        ref_pts[i, :] = ref_kpts[match.trainIdx].pt
+
+    h, mask = cv2.findHomography(align_pts, ref_pts, cv2.RANSAC)
+
+    height, width, channels = ref_img.shape
+    aligned = cv2.warpPerspective(align_img, h, (width, height))
+
+    if output_addr is not None:
+        img_name, img_format = os.path.basename(align_img_addr).split('.')
+        output_addr_matches = os.path.join(output_addr,
+                                   f"ecc_matches_{img_name}.{img_format}")
+        output_addr_align = os.path.join(output_addr,
+                                   f"{img_name}.{img_format}")
+
+        cv2.imwrite(output_addr_matches, matched)
+        cv2.imwrite(output_addr_align, aligned)
+
+    return aligned, matched
 
 
-def align_sift_dataset_iterator(dataset_iterator: SRDatasetIterator,
+def align_dataset_iterator(dataset_iterator: SRDatasetIterator, method='sift',
                                 output_addr=None):
     for img_data in dataset_iterator.get_pair():
-        yield align_sift(img_data['lr'], img_data['hr'], output_addr)
+        if method == 'sift':
+            yield align_sift(img_data['lr'], img_data['hr'], output_addr)
+        if method == 'ecc':
+            yield align_ecc(img_data['lr'], img_data['hr'], output_addr)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Overlay images for alignment' \
@@ -71,6 +118,9 @@ if __name__ == "__main__":
     parser.add_argument('--isdir', help='From a dataset', action='store_true', default=False)
     parser.add_argument('--output', help='Optional directory to output results', type=str,
                         default=None)
+    parser.add_argument('--method', help='Alignment method, one of (sift|ecc).'\
+                        ' Defaults to sift', type=str,
+                        default='sift')
     parser.add_argument('--show', help='Show output', action='store_true', default=False)
 
     args = parser.parse_args()
@@ -87,9 +137,13 @@ if __name__ == "__main__":
     if args.isdir:
         it = SRDatasetIterator(args.reference_img_addr)
         imgs = [(aligned, matches) for (aligned, matches) in
-                align_sift_dataset_iterator(it, args.output)]
+                align_dataset_iterator(it, method=args.method, output_addr=args.output)]
     else:
-        imgs.append(align_sift(args.align_img_addr, args.reference_img_addr, args.output))
+        if args.method == 'ecc':
+            (aligned, matched) = align_ecc(args.align_img_addr, args.reference_img_addr, args.output)
+        else:
+            (aligned, matched) = align_sift(args.align_img_addr, args.reference_img_addr, args.output)
+        imgs.append((aligned, matched))
 
     if args.show:
         for aligned, matches in imgs:

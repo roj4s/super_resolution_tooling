@@ -13,6 +13,7 @@ MarkupSafe @ file:///home/conda/feedstock_root/build_artifacts/markupsafe_160226
 matplotlib==3.3.2
 networkx==2.5
 numpy @ file:///home/conda/feedstock_root/build_artifacts/numpy_1604945996409/work
+opencv-contrib-python==4.4.0.46
 opencv-python==4.4.0.46
 pandas==1.1.4
 Pillow==8.0.1

@@ -4,12 +4,12 @@ import os
 class SRDatasetIterator:
 
     def __init__(self, dataset_root, HR_subfolder="HR", LR_subfolder="LR",
-                 size=100):
+                 img_format='.jpg'):
         self.dataset_root = dataset_root
         self.HR_subfolder = HR_subfolder
         self.LR_subfolder = LR_subfolder
         self.read_n = 0
-        self.size = 100
+        self.img_format = img_format
 
     def get_pair(self):
         hr_addr = os.path.join(self.dataset_root, self.HR_subfolder)
@@ -23,7 +23,7 @@ class SRDatasetIterator:
             self.read_n -= -1
 
             yield {
-                "image_name": str(i),
+                "image_name": img_name,
                 "lr": img_path_lr,
                 "hr": img_path_hr,
                 "scale": "1x",

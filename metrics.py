@@ -1,7 +1,9 @@
 from skimage import metrics as skm
 from skimage.io import imread
+from PIL import Image
 import argparse
 import os
+import numpy as np
 
 def prepare_images_pair(img1_addr, img2_addr):
     img1 = imread(img1_addr)
@@ -15,6 +17,18 @@ def prepare_images_pair(img1_addr, img2_addr):
 def psnr_from_files(img1_addr, img2_addr):
     img1, img2 = prepare_images_pair(img1_addr, img2_addr)
     return metrics.peak_signal_noise_ratio(img1, img2)
+
+def psnr_ssim_upsample(lr, hr):
+    hr_img = Image.open(hr)
+    lr_img = Image.open(lr)
+    hrs = hr_img.size
+    lr_up = lr_img.resize((hrs[0], hrs[1]), Image.BICUBIC)
+    hr_img = np.asarray(hr_img)
+    lr_up = np.asarray(lr_up)
+    d = (skm.peak_signal_noise_ratio(hr_img, lr_up),
+            skm.structural_similarity(hr_img, lr_up, multichannel=True))
+    return d
+
 
 def metrics(folder_1, folder_2):
     '''
